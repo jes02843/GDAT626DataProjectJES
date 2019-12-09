@@ -1,0 +1,20 @@
+---
+title: "Analyzing Crime Data in Boston"
+author: "Jessica Smyrski"
+date: "December 9, 2019"
+output: 
+  md_document:
+  variant: markdown_github
+  github_document: 
+    toc: true
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+```
+
