@@ -2,12 +2,7 @@
 title: "Analyzing Crime Data in Boston"
 author: "Jessica Smyrski"
 date: "December 9, 2019"
-output: 
-  md_document:
-  variant: markdown_github
-  github_document: 
-    toc: true
-always_allow_html: yes
+output: word_document
 ---
 
 ```{r setup, include=FALSE, message=FALSE, warning=FALSE}
@@ -61,6 +56,7 @@ The final question that will be addressed is: are there specific parts of the ci
 ##Executive Summary
 The objective of this analysis is to find the trend in crimes throughout the Boston area. Being able to detect certain crime trends would be beneficial for not only the police department, but for the civilians of Boston as well. Security is an important feature in choosing a city to live in. Residents want to feel safe both within their homes, as well as commuting through daily life activities.  
 Being able to find trends within crime data have a number of different benefits including enforcing additional surveillance in high crime areas, making citizens aware of the problem areas within the city, allowing for individuals to have heightened awareness in those areas when choosing a place to live or travel to, and potentially lower the crime rate by increasing overall awareness and protection against the crimes.
+From the model, it was seen that there definitely is some trend within the data but is hard to clearly see where since there is so much data. The most severe crime populated area is within the Roxbury district, and the time of day that has the highest crime is 3 to 5 pm. The day of the week that has the highest crime associated is Friday.
 
 ##Data Curation
 The data was sourced from kaggle and can be found by searching "Crimes in Boston". The original dataset is provided by Analyze Boston. My initial plan was to take the most up to date data, but for some reason the csv file was taking hours to download so I chose to go with the data provided on kaggle. The dataset on kaggle is from June 2015 to September 2018, and shows information from incident reports that are provided by the Boston Police Department.
@@ -77,13 +73,23 @@ str(crimedata)
 crimedata$OCCURRED_ON_DATE <- as.Date(crimedata$OCCURRED_ON_DATE, format = "%m/%d/%Y")
 
 #View(crimedata) - commented this out because I didn't want it to print out in my markdown
-is.na(crimedata) #checked data to see if there were any NAs
+#is.na(crimedata) #checked data to see if there were any NAs
 crimedata <- na.omit(crimedata) #removed all of the NAs
 crimedata <- crimedata[,-7] #dropped out the Shooting column
 
 plot_histogram(crimedata)
-plot_density(crimedata)
+#From this histogram we can clearly see a trend within the hour variable. Late afternoon is more of a spike in the amount of crime happening, while there is a clear decline within the early morning hours. This makes sense because the majority of individuals would be sleeping around this time of day.
+#Month also shows a spike within the summer months, compared to the winter months. This is probably because no one wants to be outside in the winter, let alone participate in crime at this time of year.
+#Offense code and reporting area can also be seen to have definite spikes with the data showing that more of the same types of crimes happen, along with the same areas reporting those crimes. This could come in handy for later analysis and forecasting.
+
+plot_density(crimedata) 
+#This shows the same information we saw in the above histogram plot, but with more of a smoothed look.
+
 plot_bar(crimedata) 
+#Looking specifically at days of the week, it was seen that the most crime happens on Fridays, but Saturday and Sunday are the least crime heavy. This was surprising because the majority of people don’t work on the weekends, so it would only make sense for more crime to happen since more individuals have more spare time on the weekends.
+#The other interesting plot would be district because it indicates that the B2 district has the most crime happening. B2 is the Roxbury district, C11 is Dorchester, D4 is Back Bay/South End/Fenway, A1 is Downtown Boston/Charlestown, B3 is Mattapan/North Dorchester, C6 is South Boston, D14 is Brighton/Allston, E13 is Jamaica Plain, E18 is Hyde Park, A7 is East Boston, E5 is West Roxbury, and A15 is Downtown Boston/Charlestown. This is a list of amount of crime by district, which would allow better awareness of crime within their district.
+#Lastly, there are definitely more part three crimes, but part one crimes are more serious and severe. Therefore, the following plots will be filtered looking just at part one crimes.
+
 
 #Filtering by most severe crimes (part one crimes)
 partone_crimes <- filter(crimedata, YEAR, UCR_PART == "Part One")
@@ -95,12 +101,14 @@ ggplot(data = partone_crimes) +
   coord_flip() +
   xlab("") +
   ylab("Count")
+#Larceny is definitely the major crime code that happens over the years. Can’t be sure there is a decrease over the years since we don’t have complete 2018 data.
 
 #Hourly throughout the day
 ggplot(data = filter(partone_crimes)) +
   geom_bar(mapping = aes(x = HOUR, fill = OFFENSE_CODE_GROUP)) +
   xlab("Hour") +
   ylab("Count")
+#Further shows that larceny is a large code group. Can also see that homicide is low compared to the other groups, which is good!
 
 #Hourly per month
 ggplot(data = filter(partone_crimes)) +
@@ -110,6 +118,7 @@ ggplot(data = filter(partone_crimes)) +
   ylab("Count") +
   ggtitle("Hourly Crime Rates by Month") +
   theme(plot.title = element_text(hjust = 0.5))
+#In a 12 month period, we can see that there is definitely some major increases in crime rate during the summer months.
 
 ggplot(data = filter(partone_crimes)) +
   geom_bar(mapping = aes(x = HOUR)) +
@@ -118,6 +127,7 @@ ggplot(data = filter(partone_crimes)) +
   ylab("Count") +
   ggtitle("Hourly Crime Rates by Code Group") +
   theme(plot.title = element_text(hjust = 0.5))  
+#Further showing that larceny and larceny from motor vehicle are the two major crime groups happening during a 24 hour period.
 
 #Creating a total crime per day dataframe
 crimebyday <- crimedata %>% group_by(OCCURRED_ON_DATE) %>% mutate(COUNT=n())
@@ -126,15 +136,14 @@ newcrimedf <- distinct(newcrimedf, OCCURRED_ON_DATE, COUNT)
 ```
 
 ##Analysis
-#Here you should answer these questions:
-#  What methods did you use to analyze your data?
-#  Why those methods?
-#  What are the limitations on your analyses?
 ```{r Analysis}
 ts(newcrimedf$COUNT, start = c(2015,180), frequency = 365) -> crime_ts
 plot(crime_ts)
+#In order to create a time series for the data, I had to manipulate the data to create a count of the number of crimes per day. From there I was able to create a time series plot. However, it is hard to see a real trend within the data from the initial plot.
+
 decompose(crime_ts) -> crime_dec
 plot(crime_dec)
+#Decomposing the data we can see that there is more of a random walk than a seasonal pattern since the random is larger than the seasonal. However, I believe we can continue to look into the seasonal to see if there could be a pattern within our data.
 
 shapiro.test(crime_ts)
 #Stationarity Tests
@@ -144,15 +153,16 @@ adf.test(crime_ts)#small p-val shows stationarity in the DF test
 kpss.test(crime_ts) #stationary
 
 #Autocorrelation Tests
-acf(crime_ts)
-pacf(crime_ts)
+acf(crime_ts) #ACF shows initial correlation at lag 0, which is to be expected. Nothing else is too concerning.
+pacf(crime_ts) #PACF shows significance when the lag is at 1, 6, and 7. We can conclude that the crimes are correlated with yesterday and the same day in the previous week. This means we can likely predict the number of crimes that will happen next week from this weeks data.
 
 library(TSA)
-periodogram(crime_ts)
+periodogram(crime_ts) #Can definitely see trends within this periodogram.
 
 auto.arima(crime_ts) #shows a (1,0,0) arima
 
 crime_ts %>% forecast(fan=TRUE) %>% plot #general forecast plot
+#From the simple forecast, we can see the crime rate staying pretty linear to the current data. Not sure if this would be a good enough predictor of the trend, yet training and testing the model would definitely help to check with this.
 
 par(mfrow = c(1,2))
 fit1 = Arima(crime_ts, order = c(1,0,0), 
@@ -164,10 +174,13 @@ fit2 = Arima(crime_ts, order = c(1,0,0),
              include.drift = F)
 future2 = forecast(fit2, h = 100)
 plot(future2) #also shows a pretty linear forecast
+#These two ARIMA forecast models show pretty linear forecasts as well. Using the basic forecasting might have been a better option in predicting the trend after all.
 ```
 
-
 ##Findings
+Overall, I believe that the model tested was the correct one. However, I think going forward taking a subset of the data would have been a better bet to see the trend in the data a little more clearly.
+The model definitely showed some trend within the data but since there is so much data, it is hard to pinpoint an exact seasonal trend. Taking a subset of the data would allow for a clearer explanation of seasonality. I think doing this would also allow for prediction of the data since you can “predict” the data that happens that wasn’t included within the subset. 
+The analysis did help to answer the two questions at the beginning regarding time and location of crimes. The area that had the most part one crimes (the most severe crimes) is within the Roxbury district. This knowledge allows for the Boston Police Department to increase awareness around the residents of the Roxbury district, along with increasing surveillance at this district. The time of day that has the highest crime is 3 to 5 pm, and the day of the week that has the highest crime associated is Friday. This information allows residence of Boston to become more aware during this time of day and day of the week in order to protect themselves from crime.
 
 
 
