@@ -10,11 +10,164 @@ output:
 always_allow_html: yes
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+# Installations from CRAN
+c("data.table",     # Fast data reading; shift()
+  "dtplyr",         # dplyr done with data.table
+  "forecast",       # forecasting
+  "here",           # Better folder structure
+  "MASS",           # fitdistr()
+  "MTS",            # Multivariate time series
+  "plotly",         # For 3-d and interactive plots
+  "tidyverse",      # For data manipulation
+  "tseries",        # Some time series functions
+  "xts",            # More time series functions
+  "zoo"             # Still more time series functions
+  ) -> package_names  
+
+for(package_name in package_names) {
+  if(!is.element(package_name, installed.packages()[,1])) {
+     install.packages(package_name,
+                      repos = "http://cran.mtu.edu/")
+  }
+  library(package_name, character.only=TRUE,
+          quietly=TRUE,verbose=FALSE)
+}
+
+# Installations from devtools. Because of folder structure on GitHub,
+#  these must be done individually
+if(!is.element("tsdl", installed.packages()[,1])) {
+  devtools::install_github("FinYang/tsdl")  # Everything else is on CRAN
+}
+library(tsdl)
+
+rm(list=c("package_name", "package_names"))
+
+options(show.signif.stars = FALSE)
+
+set_here()
+
+as.integer(Sys.time()) %% 100000 -> time_seed
+set.seed(time_seed)
 ```
 
-```{r}
+##Topic Overview
+There will be multiple questions and problems that I will address within the analysis. Most of these topics are centered around the comfort and safety of residents or visitors of Boston. The ideal question to be answered would be: is there a trend within crime data? Would we be able to predict this data to eventually create preventions or increase surveillance in order to stop the crimes from happening, that way it could increase overall wellbeing of the residents of Boston, and in turn, less theft, assult, and death. 
+Another question being addressed would be: are there specific days of the week or times of day that are safer, aka less crime heavy, than others? This is an important question because if we are able to pinpoint the safer times of day or days of the week, we would be able to increase safety for individuals. In return, we can identify those days and times that are at their most dangerous in order to increase patrol at those times, along with increase awareness to individuals so they can better prepare themselves if out and about the city.
+The final question that will be addressed is: are there specific parts of the city that are more dangerous than others? This question is important in the surveillance efforts of the police, along with the awareness of those living in the city or wanting to move to the city. Knowing where the most crime happens within a city is an important factor for individuals' feelings of comfort and safety.
 
+##Executive Summary
+The objective of this analysis is to find the trend in crimes throughout the Boston area. Being able to detect certain crime trends would be beneficial for not only the police department, but for the civilians of Boston as well. Security is an important feature in choosing a city to live in. Residents want to feel safe both within their homes, as well as commuting through daily life activities.  
+Being able to find trends within crime data have a number of different benefits including enforcing additional surveillance in high crime areas, making citizens aware of the problem areas within the city, allowing for individuals to have heightened awareness in those areas when choosing a place to live or travel to, and potentially lower the crime rate by increasing overall awareness and protection against the crimes.
+
+##Data Curation
+The data was sourced from kaggle and can be found by searching "Crimes in Boston". The original dataset is provided by Analyze Boston. My initial plan was to take the most up to date data, but for some reason the csv file was taking hours to download so I chose to go with the data provided on kaggle. The dataset on kaggle is from June 2015 to September 2018, and shows information from incident reports that are provided by the Boston Police Department.
+
+Some data cleaning that took place involved checking the data to see if there were any NA values. Once those were identified, I took steps in removing them so I could have clean and complete data. Next, I removed the Shooting column because it was unneccessary for the analysis I am performing on the data. Because I want to look at my data of crimes per day, I will need to remove the time stamp and add a column for number of crimes.
+All of this data clean up was done within the R code for my EDA below.
+
+##Exploritory Data Analysis
+```{r EDA}
+library(DataExplorer)
+crimedata <- fread(file = file.choose())
+str(crimedata)
+
+crimedata$OCCURRED_ON_DATE <- as.Date(crimedata$OCCURRED_ON_DATE, format = "%m/%d/%Y")
+
+#View(crimedata) - commented this out because I didn't want it to print out in my markdown
+is.na(crimedata) #checked data to see if there were any NAs
+crimedata <- na.omit(crimedata) #removed all of the NAs
+crimedata <- crimedata[,-7] #dropped out the Shooting column
+
+plot_histogram(crimedata)
+plot_density(crimedata)
+plot_bar(crimedata) 
+
+#Filtering by most severe crimes (part one crimes)
+partone_crimes <- filter(crimedata, YEAR, UCR_PART == "Part One")
+
+#Count of part one crimes by year
+ggplot(data = partone_crimes) +
+  geom_bar(mapping = aes(x = OFFENSE_CODE_GROUP)) +
+  facet_wrap(~ YEAR, nrow = 1) +
+  coord_flip() +
+  xlab("") +
+  ylab("Count")
+
+#Hourly throughout the day
+ggplot(data = filter(partone_crimes)) +
+  geom_bar(mapping = aes(x = HOUR, fill = OFFENSE_CODE_GROUP)) +
+  xlab("Hour") +
+  ylab("Count")
+
+#Hourly per month
+ggplot(data = filter(partone_crimes)) +
+  geom_bar(mapping = aes(x = HOUR)) +
+  facet_wrap(~MONTH) +
+  xlab("Hour") +
+  ylab("Count") +
+  ggtitle("Hourly Crime Rates by Month") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(data = filter(partone_crimes)) +
+  geom_bar(mapping = aes(x = HOUR)) +
+  facet_wrap(~ OFFENSE_CODE_GROUP) +
+  xlab("Code Group") +
+  ylab("Count") +
+  ggtitle("Hourly Crime Rates by Code Group") +
+  theme(plot.title = element_text(hjust = 0.5))  
+
+#Creating a total crime per day dataframe
+crimebyday <- crimedata %>% group_by(OCCURRED_ON_DATE) %>% mutate(COUNT=n())
+newcrimedf <- select(crimebyday, OCCURRED_ON_DATE, COUNT)
+newcrimedf <- distinct(newcrimedf, OCCURRED_ON_DATE, COUNT)
 ```
+
+##Analysis
+#Here you should answer these questions:
+#  What methods did you use to analyze your data?
+#  Why those methods?
+#  What are the limitations on your analyses?
+```{r Analysis}
+ts(newcrimedf$COUNT, start = c(2015,180), frequency = 365) -> crime_ts
+plot(crime_ts)
+decompose(crime_ts) -> crime_dec
+plot(crime_dec)
+
+shapiro.test(crime_ts)
+#Stationarity Tests
+ks.test(crime_ts, "dnorm") #telling us that we reject the null hypothesis that our data is normal because the data is NOT normal since the p-value is below 0.05.
+
+adf.test(crime_ts)#small p-val shows stationarity in the DF test 
+kpss.test(crime_ts) #stationary
+
+#Autocorrelation Tests
+acf(crime_ts)
+pacf(crime_ts)
+
+library(TSA)
+periodogram(crime_ts)
+
+auto.arima(crime_ts) #shows a (1,0,0) arima
+
+crime_ts %>% forecast(fan=TRUE) %>% plot #general forecast plot
+
+par(mfrow = c(1,2))
+fit1 = Arima(crime_ts, order = c(1,0,0), 
+             include.drift = T)
+future = forecast(fit1, h = 100)
+plot(future) #shows a pretty linear forecast with a drift. Not a very good predictor since the CI is larger than we want.
+
+fit2 = Arima(crime_ts, order = c(1,0,0), 
+             include.drift = F)
+future2 = forecast(fit2, h = 100)
+plot(future2) #also shows a pretty linear forecast
+```
+
+
+##Findings
+
+
 
